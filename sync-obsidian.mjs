@@ -16,13 +16,14 @@ const VAULT_TARGET = path.join(
   'media-center/obsidian/arta-vault/Job Hunt 2026/career-ops',
 );
 
-// Curated set only -- do NOT add data/pipeline.md, scan-history.tsv, batch/,
-// or output/ here. Those are working files, not review docs, and are exactly
-// the "millions of little files" the vault shouldn't have to index.
+// Curated set only -- do NOT add scan-history.tsv, batch/, or output/ here.
+// Those are working files, not review docs, and are exactly the "millions
+// of little files" the vault shouldn't have to index.
 const TARGETS = [
   { srcDir: 'reports', pattern: /\.md$/, destDir: 'reports' },
   { src: 'data/applications.md', dest: 'applications-tracker.md' },
   { src: 'article-digest.md', dest: 'article-digest.md' },
+  { src: 'data/pipeline.md', dest: 'scan-results.md' },
 ];
 
 function copyFile(src, dest) {
