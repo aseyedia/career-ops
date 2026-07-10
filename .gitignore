@@ -105,5 +105,8 @@ package-lock.json
 # Playwright MCP server run artifacts (ephemeral, machine-local)
 .playwright-mcp/
 
+# Obsidian two-way sync bookkeeping (mtimes, not data)
+.obsidian-sync-state.json
+
 # Planning (local scratchpad)
 plan/
