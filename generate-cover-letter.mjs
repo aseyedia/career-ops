@@ -101,6 +101,41 @@ function buildAchievementsBlock(achievements) {
   return `<ul class="achievements">\n${items}\n  </ul>`;
 }
 
+/**
+ * Read a local image file and return it as a base64 `data:` URI, or `null`
+ * if the path is unset or the file doesn't exist. `data:` URIs are used
+ * (rather than a file:// reference) so the rendered HTML is self-contained
+ * and survives being written to a temp file in a different directory —
+ * renderHtmlToPdf's Playwright context explicitly allows `data:` subresources
+ * (see generate-pdf.mjs), same mechanism inlineLocalFonts relies on for fonts.
+ */
+function imageToDataUri(imagePath) {
+  if (!imagePath) return null;
+  const resolved = resolve(imagePath);
+  if (!existsSync(resolved)) return null;
+  const ext = resolved.split(".").pop().toLowerCase();
+  const mime = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif" }[ext] || "image/png";
+  const base64 = readFileSync(resolved).toString("base64");
+  return `data:${mime};base64,${base64}`;
+}
+
+/**
+ * Build the optional letterhead header/footer blocks (payload.letterhead).
+ * Mirrors generate-cover-letter-docx.py's letterhead handling for the PDF
+ * path — until this, `letterhead` was silently ignored by the PDF renderer
+ * and only ever applied to the DOCX twin (#2044). `base_docx_path` is
+ * DOCX-only (a whole starting document, not an image) and has no PDF
+ * equivalent, so it's intentionally not read here.
+ */
+function buildLetterheadBlocks(letterhead) {
+  if (!letterhead) return { headerBlock: "", footerBlock: "" };
+  const headerUri = imageToDataUri(letterhead.header_image_path);
+  const footerUri = imageToDataUri(letterhead.footer_image_path);
+  const headerBlock = headerUri ? `<div class="letterhead-header"><img src="${headerUri}" alt=""></div>` : "";
+  const footerBlock = footerUri ? `<div class="letterhead-footer"><img src="${footerUri}" alt=""></div>` : "";
+  return { headerBlock, footerBlock };
+}
+
 /** Build the optional footnotes block with escaped links. */
 function buildFootnotesBlock(footnotes) {
   if (!footnotes || !footnotes.length) return "";
@@ -177,8 +212,11 @@ export function buildHtml(payload, templatePath) {
   // The name falls back to the candidate name so a payload can set only the
   // valediction. The <br> is emitted around escaped values, never inside one.
   const signatureBlock = buildSignatureBlock(letter.signature, candidate.name);
+  const { headerBlock: letterheadHeaderBlock, footerBlock: letterheadFooterBlock } = buildLetterheadBlocks(payload.letterhead);
 
   const replacements = {
+    "{{LETTERHEAD_HEADER_BLOCK}}": letterheadHeaderBlock,
+    "{{LETTERHEAD_FOOTER_BLOCK}}": letterheadFooterBlock,
     "{{NAME}}": escapeHtml(candidate.name),
     "{{CONTACT_LINE}}": buildContactLine(candidate),
     "{{CREDENTIALS_BLOCK}}": buildCredentialsBlock(candidate),

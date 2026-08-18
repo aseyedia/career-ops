@@ -132,9 +132,30 @@
     line-height: 1.3;
     margin-bottom: 3pt;
   }
+
+  /* Optional employer-issued letterhead (payload.letterhead) — absent by
+     default, renders as empty strings and these rules simply never match. */
+  .letterhead-header {
+    margin-bottom: 10pt;
+  }
+
+  .letterhead-header img {
+    width: 100%;
+    display: block;
+  }
+
+  .letterhead-footer {
+    margin-top: 10pt;
+  }
+
+  .letterhead-footer img {
+    width: 100%;
+    display: block;
+  }
 </style>
 </head>
 <body>
+  {{LETTERHEAD_HEADER_BLOCK}}
   <div class="name">{{NAME}}</div>
   <div class="contact">{{CONTACT_LINE}}</div>
   {{CREDENTIALS_BLOCK}}
@@ -154,5 +175,6 @@
   {{LANGUAGE_CLOSING_BLOCK}}
   {{SIGNATURE_BLOCK}}
   {{FOOTNOTES_BLOCK}}
+  {{LETTERHEAD_FOOTER_BLOCK}}
 </body>
 </html>

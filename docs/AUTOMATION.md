@@ -15,6 +15,10 @@ Two independent pieces, smallest first. You can use either on its own.
   reads `## Pending` from `data/pipeline.md`, compares each posting against
   `config/profile.yml`, and writes a shortlist you actually open. No web, no JD
   extraction, no PDFs, no subagents.
+- **[3. Full unattended pipeline + email digest](#3-full-unattended-pipeline--email-digest)**
+  — the next step up from scheduling `scan.mjs` alone: a single headless `claude -p`
+  run that scans, evaluates, updates the tracker, and emails you a digest, with no
+  session open at all. This is the piece that benefits from an always-on machine.
 
 > Everything here is **local-first**: your CV, profile, and pipeline stay on your
 > machine — none of your data is uploaded. The scan does reach out to *public*
@@ -154,6 +158,70 @@ Open `data/shortlist.md`, then run a real evaluation only on the "Worth a look" 
 
 That keeps the expensive step — token-spending evaluation — pointed only at postings
 that already cleared a free title/location filter.
+
+---
+
+## 3. Full unattended pipeline + email digest
+
+Sections 1 and 2 above still leave a human step: opening `data/shortlist.md` and
+running `/career-ops pipeline` yourself. This section wires the *whole* loop —
+scan, evaluate, tracker update, dashboard sync, follow-up check — into one headless
+run, then emails you a digest instead of leaving output sitting in a log file.
+
+This is meaningfully heavier than sections 1–2: it runs a real `claude -p` session
+(so it spends tokens on every evaluation, same as an interactive `/career-ops
+pipeline` run) and it needs somewhere to send email from. It's worth it once you'd
+rather read a 30-second email over coffee than remember to check the tool.
+
+**Three pieces, all at the repo root:**
+
+- `daily-scan-prompt.md` — the actual instructions for the headless run: read your
+  profile, scan, run WebSearch discovery for anything without an API, evaluate and
+  file everything that clears your filters, sync the dashboard + Obsidian vault,
+  check `data/agent-inbox.md` and follow-up cadence for anything time-sensitive,
+  then print a compact JSON digest between `<<<EMAIL_START>>>`/`<<<EMAIL_END>>>`
+  markers. Edit this file to change what the unattended run does.
+- `send-daily-report.mjs` — renders that JSON digest into an HTML + plain-text
+  email and sends it via SMTP ([nodemailer](https://nodemailer.com/)). Needs SMTP
+  creds in the environment (`SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/
+  `SMTP_PWD`, or a `.env` file — see the top of the script) and a recipient, which
+  defaults to `candidate.email` in `config/profile.yml` if you don't pass one.
+- `cron-daily-scan.sh` / `cron-update-check.sh` — the cron wrappers. The first runs
+  `daily-scan-prompt.md` headless and emails whatever it finds (falling back to the
+  raw log if the JSON markers are missing, so a bug never silently eats a day's
+  results). The second runs `node update-system.mjs check` and auto-applies if a
+  system update is available — safe unattended because `apply` only ever touches
+  system-layer files and stashes/restores any dirty local ones around itself.
+
+Both scripts self-locate (`cd` to their own directory) and resolve `claude`/`node`
+from `$HOME/.local/bin` and the latest nvm build, so they work as-is from any
+checkout — no path editing needed unless your install layout differs from that.
+Wire them into cron the same way as section 1:
+
+```cron
+50 7 * * * /path/to/career-ops/cron-daily-scan.sh    >> /path/to/career-ops/logs/cron.log 2>&1
+0  7 * * * /path/to/career-ops/cron-update-check.sh  >> /path/to/career-ops/logs/cron.log 2>&1
+```
+
+**Why this wants an always-on machine.** A laptop that sleeps, closes, or isn't
+running at 7am silently skips the run — cron doesn't queue a missed job the way
+`launchd` does. A small machine that's on 24/7 (a spare mini PC, a Raspberry Pi, a
+cheap always-free-tier VPS) removes that failure mode entirely: the scan and the
+email happen whether or not you ever open a laptop that day. It doesn't need to be
+powerful — `scan.mjs` is a handful of API calls and the headless `claude -p` run is
+the only step with real CPU/network use, and even that's just one evaluation pass a
+day.
+
+**Driving the same box interactively, not just via cron.** Cron covers the
+unattended runs; the always-on machine is also useful for the sessions where
+you're actually steering — evaluating a JD together, tailoring a CV, working the
+tracker. One workflow that pairs well with it: keep career-ops open in a `tmux`
+session on the box (`tmux new -s career-ops`, `cd` into the repo, start your CLI),
+then detach and reconnect from wherever you actually are — Claude Desktop or
+[claude.ai/code](https://claude.ai/code) if you're driving Claude Code, SSH'd into
+the tmux session directly otherwise. The session, its context, and anything
+mid-run stay alive on the box between whenever you check in, instead of living and
+dying with a laptop lid.
 
 ---
 

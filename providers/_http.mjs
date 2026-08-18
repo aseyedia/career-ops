@@ -125,11 +125,33 @@ export function isRetryableError(err) {
  * @returns {Promise<any>} Parsed JSON.
  */
 export async function fetchJsonWithRetry(ctx, url, opts = {}, policy = {}) {
+  return retryLoop(() => ctx.fetchJson(url, opts), ctx, policy);
+}
+
+/**
+ * Fetch raw text with the same bounded-retry semantics as fetchJsonWithRetry
+ * (exponential backoff, jitter, clamped Retry-After) — for providers that
+ * parse HTML (e.g. senjob.mjs) rather than a JSON API, so a transient 429/5xx
+ * mid-sweep doesn't abort the whole run the same way it used to for JSON
+ * boards before fetchJsonWithRetry existed.
+ *
+ * @param {{fetchText: Function, sleep?: Function}} ctx - Transport context.
+ * @param {string} url - Absolute URL.
+ * @param {object} [opts] - Passed through to ctx.fetchText.
+ * @param {{retries?: number, baseDelayMs?: number, maxDelayMs?: number}} [policy]
+ * @returns {Promise<string>} Response body text.
+ */
+export async function fetchTextWithRetry(ctx, url, opts = {}, policy = {}) {
+  return retryLoop(() => ctx.fetchText(url, opts), ctx, policy);
+}
+
+/** Shared retry loop behind fetchJsonWithRetry and fetchTextWithRetry — see fetchJsonWithRetry's docstring for the policy rationale. */
+async function retryLoop(attemptFn, ctx, policy = {}) {
   const { retries, baseDelayMs, maxDelayMs } = { ...RETRY_DEFAULTS, ...policy };
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await ctx.fetchJson(url, opts);
+      return await attemptFn();
     } catch (err) {
       lastErr = err;
       if (attempt === retries || !isRetryableError(err)) throw err;
