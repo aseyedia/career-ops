@@ -2313,7 +2313,14 @@ async function main() {
         }
         // job.title is passed so a role whose remoteness is stated in the title
         // ("Program Manager - Remote") isn't rejected for a city-only location.
-        if (!locationFilter(job.location, job.url, job.title)) {
+        //
+        // trust_location (portal entry, opt-in): bypasses this filter entirely
+        // for employers whose ATS reports locationsText as a building/dept
+        // name rather than a city (e.g. Workday tenants for single-campus
+        // universities) — location_filter's allow-list can't be maintained
+        // against an effectively unbounded set of building names, so a portal
+        // known to be single-location sets this instead of chasing them.
+        if (!company.trust_location && !locationFilter(job.location, job.url, job.title)) {
           totalFilteredLocation++;
           continue;
         }
